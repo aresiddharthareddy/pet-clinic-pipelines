@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        SONAR_TOKEN = credentials('sonarcloud-token') // Jenkins credential ID
+        // SONAR_TOKEN = credentials('sonarcloud-token') // Jenkins credential ID
         PORT = '9000'
     }
 
