@@ -1,16 +1,15 @@
 pipeline {
     agent any
 
-    tools {
-        sonarQubeScanner 'SonarScanner'
-    }
     environment {
         SONAR_TOKEN = credentials('sonarcloud-token') // Jenkins credential ID
         PORT = '9000'
     }
+
     triggers {
         pollSCM('H/2 * * * *')  // trigger for every 2 minutes (example)
     }
+
     stages {
         stage('Checkout') {
             steps {
