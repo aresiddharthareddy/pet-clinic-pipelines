@@ -1,6 +1,8 @@
 pipeline {
     agent any
-
+    tools {
+        sonarQube 'SonarScanner'
+    }
     environment {
         SONAR_TOKEN = credentials('sonarcloud-token') // Jenkins credential ID
         PORT = '9000'
