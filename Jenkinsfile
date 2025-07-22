@@ -1,11 +1,17 @@
 pipeline {
     agent any
+
+    tools {
+        sonarQubeScanner 'SonarScanner'
+    }
+    environment {
+        SONAR_TOKEN = credentials('sonarcloud-token') // Jenkins credential ID
+    }
     triggers {
         pollSCM('H/2 * * * *')  // trigger for every 2 minutes (example)
     }
     environment {
         PORT = '9000'
-        START_TIME = ''
     }
     stages {
         stage('Checkout') {
@@ -17,12 +23,27 @@ pipeline {
                 )
             }
         }
-        stage('Build') {
+        stage('SonarCloud Scan') {
             steps {
-                echo 'Building Sprint Petclinic..'
-                bat 'mvn clean package -DskipTests'
+                withSonarQubeEnv('SonarCloud') {
+                    bat 'sonar-scanner'
+                }
             }
         }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 3, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        // stage('Build') {
+        //     steps {
+        //         echo 'Building Sprint Petclinic..'
+        //         bat 'mvn clean package -DskipTests'
+        //     }
+        // }
         // stage('Test') {
         //     steps {
         //         echo 'Testing Sprint Petclinic..'
