@@ -1,8 +1,5 @@
 pipeline {
     agent any
-    tools {
-        sonarQube 'SonarScanner'
-    }
     environment {
         SONAR_TOKEN = credentials('sonarcloud-token') // Jenkins credential ID
         PORT = '9000'
@@ -23,9 +20,12 @@ pipeline {
             }
         }
         stage('SonarCloud Scan') {
+            environment {
+                scannerHome = tool 'SonarScanner';
+            }
             steps {
                 withSonarQubeEnv('SonarCloud') {
-                    bat 'sonar-scanner'
+                    bat "${scannerHome}/bin/sonar-scanner"
                 }
             }
         }
