@@ -56,11 +56,13 @@ pipeline {
     }
     post {
         success {
+            echo "${currentBuild.currentResult}"
             script {
                 emailext (
                     subject: "✅ SUCCESS: Job ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
                     body: """<p>✅ Build succeeded for <b>${env.JOB_NAME} #${env.BUILD_NUMBER}</b>.</p>
-                             <p><a href="${env.BUILD_URL}console">Click here</a> to check full log</p>""",
+                             <p><a href="${env.BUILD_URL}console">Click here</a> to check full log</p>
+                             """,
                     mimeType: 'text/html',
                     to: "rgundla@osidigital.com"
                 )
@@ -87,5 +89,5 @@ pipeline {
         always {
             echo "Pipeline completed."
         }
-}
+    }
 }
