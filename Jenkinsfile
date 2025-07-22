@@ -21,12 +21,9 @@ pipeline {
             }
         }
         stage('SonarCloud Scan') {
-            environment {
-                scannerHome = tool 'SonarScanner';
-            }
             steps {
                 withSonarQubeEnv('SonarCloud') {
-                    bat "${scannerHome}/bin/sonar-scanner"
+                    bat 'sonar-scanner'
                 }
             }
         }
