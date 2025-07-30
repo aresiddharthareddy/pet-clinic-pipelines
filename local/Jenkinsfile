@@ -1,0 +1,64 @@
+pipeline {
+    agent any
+    // triggers {
+    //     pollSCM('H/2 * * * *')  // trigger for every 2 minutes (example)
+    // }
+    environment {
+        PORT = '9000'
+        IMAGE_NAME = 'spring-petclinic'
+        TAG= 'latest'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scmGit(
+                    branches: [[name: '*/main']], 
+                    extensions: [], 
+                    userRemoteConfigs: [[url: 'https://github.com/gundlarakesh/spring-petclinic.git']]
+                )
+            }
+        }
+        stage('Build') {
+            steps {
+                echo 'Building Sprint Petclinic..'
+                bat 'mvn clean package -DskipTests'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Testing Sprint Petclinic..'
+                bat 'mvn test'
+            }
+        }
+        stage('Docker Build and Push') {
+            steps {
+                echo 'Building Docker image for Sprint Petclinic..'
+
+                bat "docker build -t ${IMAGE_NAME}:${TAG} ."
+                // Login to 
+                bat "docker login -u <your-username> -p <your-password>"
+                bat "docker push ${IMAGE_NAME}:${TAG}"
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying Sprint Petclinic..'
+            }
+        }
+        // stage('Deploy') {
+        //     steps {
+        //         echo 'Deploying Sprint Petclinic..'
+        //         // To start development server, uncomment the next line
+        //         // bat 'java -jar ./target/spring-petclinic-3.5.0-SNAPSHOT.jar --server.port=${PORT}'
+        //     }
+        // }
+    }
+    post{ 
+        always {
+            echo 'Cleaning up..'
+            // Clean up workspace after build
+            bat 'mvn clean'
+        }
+    }
+
+}

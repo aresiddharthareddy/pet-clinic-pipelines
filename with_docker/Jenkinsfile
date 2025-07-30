@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+    // triggers {
+    //     pollSCM('H/2 * * * *')  // trigger for every 2 minutes (example)
+    // }
+    environment {
+        PORT = '9000'
+        IMAGE_NAME = 'spring-petclinic'
+        TAG= 'latest'
+    }
+    stages {
+        stage('Checkout') {
+            agent {label 'built-in'}
+            steps {
+                checkout scmGit(
+                    branches: [[name: '*/main']], 
+                    extensions: [], 
+                    userRemoteConfigs: [[url: 'https://github.com/gundlarakesh/spring-petclinic.git']]
+                )
+            }
+        }
+        stage('Build') {
+            agent {label 'windows-agent'}
+            steps {
+                echo 'Building Sprint Petclinic..'
+                bat 'mvn clean package -DskipTests'
+                // need to exchange the file between windows and linux agents
+                stash name: 'maven-build', includes: 'target/*.jar'
+            }
+        }
+        stage('Test') {
+            agent {label 'windows-agent'}
+            steps {
+                echo 'Testing Sprint Petclinic..'
+                bat 'mvn test'
+            }
+        }
+        stage('Docker Build') {
+            agent {label 'built-in'}
+            steps {
+                echo 'Building Docker image for Sprint Petclinic..'
+                unstash 'maven-build' // retrieve the JAR file from the stash
+                sh "docker build -t ${IMAGE_NAME}:${TAG} ."
+            }
+        }
+        stage('Deploy') {
+            agent {label 'built-in'}
+            steps {
+                echo 'Deploying Sprint Petclinic..'
+                sh "docker run -d -p ${PORT}:${PORT} --name ${IMAGE_NAME} ${IMAGE_NAME}:${TAG}"
+            }
+        }
+    }
+    post{ 
+        always {
+            echo 'Cleaning up..'
+            bat 'mvn clean'
+        }
+    }
+
+}
