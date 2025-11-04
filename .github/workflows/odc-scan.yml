@@ -1,4 +1,4 @@
-name: OWASP Dependency-Check (Universal Reliable Scanner)
+name: OWASP Dependency-Check (Universal Real Vulnerability Scan)
 
 on:
   workflow_dispatch:
@@ -11,31 +11,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Run OWASP Dependency-Check (official container)
-        uses: dependency-check/Dependency-Check_Action@main
+      - name: Install Java (required for ODC)
+        uses: actions/setup-java@v4
         with:
-          project: ${{ github.repository }}
-          path: '.'                       # scan entire repo
-          format: 'JSON'                  # generate only JSON report
-          out: reports                    # output directory
-          failOnCVSS: '0'                 # never fail pipeline
-          args: >
-            --enableExperimental
-            --disableAssembly
-            --disableRetireJS
-            --disableOssIndex
-            --noupdate
+          distribution: 'temurin'
+          java-version: '17'
 
-      - name: Fix permissions on report directory
+      - name: Run OWASP Dependency-Check (official Docker image)
         run: |
-          echo "Fixing permissions on reports directory..."
-          sudo chmod -R 777 reports || true
-          ls -lah reports
+          mkdir -p reports
+          docker run --rm \
+            -e NVD_API_KEY="${{ secrets.NVD_API_KEY }}" \
+            -v "$(pwd):/src" \
+            -v "$(pwd)/reports:/report" \
+            owasp/dependency-check:latest \
+            --scan /src \
+            --format "JSON" \
+            --out /report \
+            --project "${{ github.repository }}" \
+            --enableExperimental \
+            --disableAssembly \
+            --disableRetireJS \
+            --noupdate \
+            --failOnCVSS 0
+        shell: bash
 
-      - name: Simplify JSON report (extract CVE, CWE, severity, line info)
+      - name: Fix permissions
+        run: sudo chmod -R 777 reports || true
+
+      - name: Simplify JSON report
         run: |
           JSON_IN="reports/dependency-check-report.json"
           JSON_OUT="reports/dependency-summary.json"
@@ -54,23 +61,21 @@ jobs:
               select(.vulnerabilities != null) |
               .vulnerabilities[]? |
               {
-                file: .fileName,
-                cve: .name,
-                cwe: .cwe,
-                severity: .severity,
-                description: .description,
-                lineNumber: (.references[]?.lineNumber // "N/A")
+                file: (.fileName // "N/A"),
+                cve: (.name // "N/A"),
+                cwe: (.cwe // "N/A"),
+                severity: (.severity // "N/A"),
+                description: (.description // "N/A")
               }
             ]
           }' "$JSON_IN" > "$JSON_OUT"
 
-          echo "✅ Simplified vulnerability summary saved to: $JSON_OUT"
-          echo "### Dependency-Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
           jq -r '.vulnerabilities[]?.severity' "$JSON_OUT" | sort | uniq -c | awk '{print "- **"$2"**: "$1}' >> $GITHUB_STEP_SUMMARY
           TOTAL=$(jq '.vulnerabilities | length' "$JSON_OUT")
           echo "Total vulnerabilities: **$TOTAL**" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload Simplified Report (Artifact)
+      - name: Upload report artifact
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-summary
