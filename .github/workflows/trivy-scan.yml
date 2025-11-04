@@ -12,13 +12,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run Trivy FS scan and generate HTML report
+      - name: Download Trivy HTML template
+        run: |
+          mkdir -p contrib
+          curl -sL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o contrib/html.tpl
+
+      - name: Run Trivy scan and generate HTML report
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           format: template
-          template: "@/contrib/html.tpl"
+          template: ./contrib/html.tpl
           output: trivy-report.html
           severity: HIGH,CRITICAL
           ignore-unfixed: true
