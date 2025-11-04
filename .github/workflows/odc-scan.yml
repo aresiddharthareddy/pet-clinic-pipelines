@@ -1,4 +1,4 @@
-name: Dependency-Check Scan
+name: OWASP Dependency-Check (Universal Reliable Scanner)
 
 on:
   workflow_dispatch:
@@ -10,32 +10,62 @@ jobs:
   dependency-check:
     runs-on: ubuntu-latest
 
-    env:
-      DC_VERSION: "12.1.8"
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Download Dependency-Check
-        run: |
-          wget -q "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}.zip"
-          unzip -q "dependency-check-${DC_VERSION}.zip" -d dependency-check
-          chmod +x dependency-check/bin/dependency-check.sh
-
-      - name: Run OWASP Dependency-Check
-        run: |
-          mkdir -p reports
-          ./dependency-check/bin/dependency-check.sh \
-            --project "$(basename $GITHUB_REPOSITORY)" \
-            --scan . \
-            --format HTML \
-            --out reports/dependency-check-report.html \
-            --disableAssembly \
+      - name: Run OWASP Dependency-Check (official container)
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: ${{ github.repository }}
+          path: '.'                       # scan entire repo
+          format: 'JSON'                  # generate only JSON report
+          out: reports                    # output directory
+          failOnCVSS: '0'                 # never fail pipeline
+          args: >
+            --enableExperimental
+            --disableAssembly
+            --disableRetireJS
+            --disableOssIndex
             --noupdate
 
-      - name: Upload Dependency-Check report artifact
+      - name: Simplify JSON report (extract CVE, CWE, severity, line info)
+        run: |
+          JSON_IN="reports/dependency-check-report.json"
+          JSON_OUT="reports/dependency-summary.json"
+
+          if [ ! -f "$JSON_IN" ]; then
+            echo "No dependency-check-report.json found!"
+            exit 1
+          fi
+
+          jq '{
+            project: .projectInfo.name,
+            scanDate: .projectInfo.reportDate,
+            totalDependencies: (.dependencies | length),
+            vulnerabilities: [
+              .dependencies[]? |
+              select(.vulnerabilities != null) |
+              .vulnerabilities[]? |
+              {
+                file: .fileName,
+                cve: .name,
+                cwe: .cwe,
+                severity: .severity,
+                description: .description,
+                lineNumber: (.references[]?.lineNumber // "N/A")
+              }
+            ]
+          }' "$JSON_IN" > "$JSON_OUT"
+
+          echo "✅ Simplified vulnerability summary saved to: $JSON_OUT"
+          echo "### Dependency-Check Summary" >> $GITHUB_STEP_SUMMARY
+          jq -r '.vulnerabilities[]?.severity' "$JSON_OUT" | sort | uniq -c | awk '{print "- **"$2"**: "$1}' >> $GITHUB_STEP_SUMMARY
+          TOTAL=$(jq '.vulnerabilities | length' "$JSON_OUT")
+          echo "Total vulnerabilities: **$TOTAL**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Simplified Report (Artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: dependency-check-report
-          path: reports/dependency-check-report.html
+          name: dependency-check-summary
+          path: reports/dependency-summary.json
