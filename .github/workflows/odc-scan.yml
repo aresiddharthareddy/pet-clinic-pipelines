@@ -1,4 +1,4 @@
-name: OWASP Dependency Check (Python)
+name: OWASP Dependency Check (Universal)
 
 on:
   push:
@@ -8,11 +8,11 @@ on:
 jobs:
   dependency-check:
     runs-on: ubuntu-latest
-    name: Run OWASP Dependency-Check
+    name: Universal OWASP Dependency Check
 
     env:
       DC_VERSION: 10.0.3
-      DC_DIR: ${{ runner.temp }}/dependency-check
+      DC_DIR: $HOME/dependency-check
       DATA_MIRROR: https://jeremylong.github.io/DependencyCheckData
 
     steps:
@@ -25,27 +25,26 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Download Dependency-Check
+      - name: Download OWASP Dependency-Check
         run: |
-          mkdir -p $DC_DIR
           wget -q "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip"
-          unzip -q "dependency-check-${DC_VERSION}-release.zip" -d $DC_DIR
+          unzip -q "dependency-check-${DC_VERSION}-release.zip"
+          mv "dependency-check-${DC_VERSION}" "$DC_DIR"
 
-      - name: Run Dependency-Check on Python requirements
+      - name: Run Dependency-Check
         run: |
           mkdir -p reports
-          $DC_DIR/dependency-check/bin/dependency-check.sh \
+          $DC_DIR/bin/dependency-check.sh \
             --project "${{ github.repository }}" \
             --scan . \
-            --enableExperimental \
-            --enablePyDist \
             --format "HTML" \
             --out reports/dependency-check-report.html \
+            --disableAssembly \
             --data $DATA_MIRROR \
-            --disableAssembly
+            --enableExperimental
 
       - name: Upload HTML Report
         uses: actions/upload-artifact@v4
         with:
-          name: ODC-HTML-Report
+          name: DependencyCheck-Report
           path: reports/dependency-check-report.html
