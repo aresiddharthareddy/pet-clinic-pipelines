@@ -17,16 +17,17 @@ jobs:
           mkdir -p contrib
           curl -sL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o contrib/html.tpl
 
-      - name: Run Trivy scan and generate HTML report
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: template
-          template: ./contrib/html.tpl
-          output: trivy-report.html
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
+      - name: Run Trivy FS scan and generate HTML report
+        run: |
+          docker run --rm \
+            -v $(pwd):/project \
+            -v $(pwd)/contrib:/contrib \
+            aquasec/trivy fs /project \
+            --format template \
+            --template "@/contrib/html.tpl" \
+            --output trivy-report.html \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed
 
       - name: Upload HTML report artifact
         uses: actions/upload-artifact@v4
