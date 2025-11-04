@@ -1,50 +1,41 @@
-name: OWASP Dependency Check (Universal)
+name: Dependency-Check Scan
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
 
 jobs:
   dependency-check:
     runs-on: ubuntu-latest
-    name: Universal OWASP Dependency Check
 
     env:
-      DC_VERSION: 10.0.3
-      DC_DIR: $HOME/dependency-check
-      DATA_MIRROR: https://jeremylong.github.io/DependencyCheckData
+      DC_VERSION: "12.1.8"
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java (required for ODC)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Download OWASP Dependency-Check
+      - name: Download Dependency-Check
         run: |
-          wget -q "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip"
-          unzip -q "dependency-check-${DC_VERSION}-release.zip"
-          mv "dependency-check-${DC_VERSION}" "$DC_DIR"
+          wget -q "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}.zip"
+          unzip -q "dependency-check-${DC_VERSION}.zip" -d dependency-check
+          chmod +x dependency-check/bin/dependency-check.sh
 
-      - name: Run Dependency-Check
+      - name: Run OWASP Dependency-Check
         run: |
           mkdir -p reports
-          $DC_DIR/bin/dependency-check.sh \
-            --project "${{ github.repository }}" \
+          ./dependency-check/bin/dependency-check.sh \
+            --project "$(basename $GITHUB_REPOSITORY)" \
             --scan . \
-            --format "HTML" \
+            --format HTML \
             --out reports/dependency-check-report.html \
             --disableAssembly \
-            --data $DATA_MIRROR \
-            --enableExperimental
+            --noupdate
 
-      - name: Upload HTML Report
+      - name: Upload Dependency-Check report artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DependencyCheck-Report
+          name: dependency-check-report
           path: reports/dependency-check-report.html
