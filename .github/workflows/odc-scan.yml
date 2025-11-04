@@ -29,6 +29,12 @@ jobs:
             --disableOssIndex
             --noupdate
 
+      - name: Fix permissions on report directory
+        run: |
+          echo "Fixing permissions on reports directory..."
+          sudo chmod -R 777 reports || true
+          ls -lah reports
+
       - name: Simplify JSON report (extract CVE, CWE, severity, line info)
         run: |
           JSON_IN="reports/dependency-check-report.json"
