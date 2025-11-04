@@ -1,49 +1,51 @@
-name: ODC Dependency-Check (reliable & fast)
+name: OWASP Dependency Check (Python)
 
 on:
   push:
-    branches: [ main ]
   pull_request:
   workflow_dispatch:
 
 jobs:
   dependency-check:
     runs-on: ubuntu-latest
+    name: Run OWASP Dependency-Check
+
+    env:
+      DC_VERSION: 10.0.3
+      DC_DIR: ${{ runner.temp }}/dependency-check
+      DATA_MIRROR: https://jeremylong.github.io/DependencyCheckData
+
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run OWASP Dependency-Check (action with DB image)
-        # This action runs a prebuilt dependency-check Docker image (DB included)
-        # so you DO NOT need to download the whole NVD in the job.
-        uses: dependency-check/Dependency-Check_Action@main
+      - name: Setup Java (required for ODC)
+        uses: actions/setup-java@v4
         with:
-          project: ${{ github.repository }}
-          path: '.'                 # scan the repository root
-          out: reports              # output directory inside workspace
-          format: 'ALL'             # produces HTML, JSON, XML
-          failOnCVSS: '0'           # don't fail the job by default (0 = disabled). Change if needed.
-          # Additional args can be passed in `args` if you want:
-          # args: --disableAssembly
+          distribution: temurin
+          java-version: 17
 
-      - name: Show quick summary (counts by severity)
+      - name: Download Dependency-Check
         run: |
-          JSON="reports/dependency-check-report.json"
-          if [ -f "$JSON" ]; then
-            echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            jq -r '.dependencies[]?.vulnerabilities[]?.severity' "$JSON" 2>/dev/null \
-              | sort | uniq -c | awk '{print "- **"$2"**: "$1}' >> $GITHUB_STEP_SUMMARY || true
-            echo "" >> $GITHUB_STEP_SUMMARY
-            TOTAL=$(jq '[.dependencies[]?.vulnerabilities[]?] | length' "$JSON")
-            echo "Total vulnerabilities found: **$TOTAL**" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No JSON report found; check action logs."
-          fi
-        shell: bash
+          mkdir -p $DC_DIR
+          wget -q "https://github.com/jeremylong/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip"
+          unzip -q "dependency-check-${DC_VERSION}-release.zip" -d $DC_DIR
 
-      - name: Upload ODC reports (artifact)
+      - name: Run Dependency-Check on Python requirements
+        run: |
+          mkdir -p reports
+          $DC_DIR/dependency-check/bin/dependency-check.sh \
+            --project "${{ github.repository }}" \
+            --scan . \
+            --enableExperimental \
+            --enablePyDist \
+            --format "HTML" \
+            --out reports/dependency-check-report.html \
+            --data $DATA_MIRROR \
+            --disableAssembly
+
+      - name: Upload HTML Report
         uses: actions/upload-artifact@v4
         with:
-          name: ODC-Reports
-          path: reports/
+          name: ODC-HTML-Report
+          path: reports/dependency-check-report.html
