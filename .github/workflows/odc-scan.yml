@@ -1,0 +1,49 @@
+name: ODC Dependency-Check (reliable & fast)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run OWASP Dependency-Check (action with DB image)
+        # This action runs a prebuilt dependency-check Docker image (DB included)
+        # so you DO NOT need to download the whole NVD in the job.
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: ${{ github.repository }}
+          path: '.'                 # scan the repository root
+          out: reports              # output directory inside workspace
+          format: 'ALL'             # produces HTML, JSON, XML
+          failOnCVSS: '0'           # don't fail the job by default (0 = disabled). Change if needed.
+          # Additional args can be passed in `args` if you want:
+          # args: --disableAssembly
+
+      - name: Show quick summary (counts by severity)
+        run: |
+          JSON="reports/dependency-check-report.json"
+          if [ -f "$JSON" ]; then
+            echo "### Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            jq -r '.dependencies[]?.vulnerabilities[]?.severity' "$JSON" 2>/dev/null \
+              | sort | uniq -c | awk '{print "- **"$2"**: "$1}' >> $GITHUB_STEP_SUMMARY || true
+            echo "" >> $GITHUB_STEP_SUMMARY
+            TOTAL=$(jq '[.dependencies[]?.vulnerabilities[]?] | length' "$JSON")
+            echo "Total vulnerabilities found: **$TOTAL**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No JSON report found; check action logs."
+          fi
+        shell: bash
+
+      - name: Upload ODC reports (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ODC-Reports
+          path: reports/
