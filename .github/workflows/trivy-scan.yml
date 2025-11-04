@@ -12,24 +12,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Trivy HTML template
+      - name: Prepare template
         run: |
           mkdir -p contrib
           curl -sL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o contrib/html.tpl
 
-      - name: Run Trivy FS scan and generate HTML report
+      - name: Run Trivy scan and generate HTML report
         run: |
           docker run --rm \
-            -v $(pwd):/project \
-            -v $(pwd)/contrib:/contrib \
-            aquasec/trivy fs /project \
+            -v ${{ github.workspace }}:/project \
+            -w /project \
+            aquasec/trivy:latest fs . \
             --format template \
-            --template "@/contrib/html.tpl" \
-            --output trivy-report.html \
+            --template "@/project/contrib/html.tpl" \
+            --output /project/trivy-report.html \
             --severity HIGH,CRITICAL \
             --ignore-unfixed
 
-      - name: Upload HTML report artifact
+      - name: Verify report generated
+        run: ls -lh trivy-report.html
+
+      - name: Upload HTML report
         uses: actions/upload-artifact@v4
         with:
           name: trivy-html-report
